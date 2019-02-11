@@ -31,9 +31,14 @@ class ReloadStockScheduler(
     }
 
     override fun doStart() {
-        schedule = scheduler.scheduleAtFixedRate({
 
-            var url = System.getenv("EVA_STOCK_URL") ?: "http://eva-backend-service:8080/middleware/pim/stock"
+        var url = System.getenv("EVA_STOCK_URL") ?: "http://eva-backend-service:8080/middleware/pim/stock"
+
+        var reloadTimeString = System.getenv("STOCK_REFRESH_INTERVAL_MINUTES")
+
+        var reloadTime = reloadTimeString.toLongOrNull() ?: 60L
+
+        schedule = scheduler.scheduleAtFixedRate({
 
             logger.info("Reloading Stock from $url")
 
@@ -90,7 +95,7 @@ class ReloadStockScheduler(
 
             logger.info("Reloaded Stock: ${stockMap.size()} records")
 
-        }, 0L, 15L, TimeUnit.MINUTES)
+        }, 0L, reloadTime, TimeUnit.MINUTES)
     }
 
     override fun doStop() {
