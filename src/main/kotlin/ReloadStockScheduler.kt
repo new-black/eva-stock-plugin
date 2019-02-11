@@ -62,7 +62,7 @@ class ReloadStockScheduler(
 
                             var data = httpResponse.entity.content.readBytes()
 
-                            logger.info("Response size $data.size")
+                            logger.info("Response size ${data.size}")
 
                             val buffer = ByteBuffer.wrap(data)
 
