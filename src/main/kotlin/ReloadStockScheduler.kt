@@ -7,6 +7,7 @@ import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.impl.client.HttpClients
 import org.elasticsearch.common.component.AbstractLifecycleComponent
+import org.elasticsearch.common.logging.Loggers
 import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.index.Index
 import org.omg.CORBA.Environment
@@ -25,6 +26,7 @@ class ReloadStockScheduler(
 ) : AbstractLifecycleComponent(settings) {
 
     private var schedule: ScheduledFuture<*>? = null
+    private val logger = Loggers.getLogger(ReloadStockScheduler::class.java, "eva")
 
     companion object {
         public var stockMap = LongIntHashMap()
