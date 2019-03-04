@@ -36,7 +36,7 @@ class ReloadStockScheduler(
 
         var reloadTimeString = System.getenv("STOCK_REFRESH_INTERVAL_MINUTES")
 
-        var reloadTime = reloadTimeString.toLongOrNull() ?: 60L
+        var reloadTime = reloadTimeString?.toLongOrNull() ?: 60L
 
         schedule = scheduler.scheduleAtFixedRate({
 
