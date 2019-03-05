@@ -62,12 +62,11 @@ class EVAScriptEngine : ScriptEngine {
             }
         }
 
-        private class Script(private val orgIDs : LongArray,
-                             private val boostAmount : Double,
-                             private val stock : LongIntHashMap, params : Map<String, Any>,
-                             lookup : SearchLookup , leafContext : LeafReaderContext )
-            : SearchScript(params, lookup, leafContext)
-        {
+        private class Script(private val orgIDs: LongArray,
+                             private val boostAmount: Double,
+                             private val stock: LongIntHashMap, params: Map<String, Any>,
+                             lookup: SearchLookup, leafContext: LeafReaderContext)
+            : SearchScript(params, lookup, leafContext) {
             override fun runAsDouble(): Double {
                 val productID = (doc["product_id"] as ScriptDocValues.Longs)[0]
 
@@ -104,21 +103,22 @@ class EVAScriptEngine : ScriptEngine {
             LongArray(0)
         }
 
-        private class Script(private val orgIDs : LongArray,
-                             private val stock : LongIntHashMap, params : Map<String, Any>,
-                             lookup : SearchLookup , leafContext : LeafReaderContext )
-            : FilterScript(params, lookup, leafContext)
-        {
+        private class Script(private val orgIDs: LongArray,
+                             private val stock: LongIntHashMap, params: Map<String, Any>,
+                             lookup: SearchLookup, leafContext: LeafReaderContext)
+            : FilterScript(params, lookup, leafContext) {
+
             override fun execute(): Boolean {
+
                 val productID = (doc["product_id"] as ScriptDocValues.Longs)[0]
 
                 for (orgID in orgIDs) {
 
                     val key = productID shl 32 or (orgID and 0xffffffffL)
 
-                    val hasStock = stock.containsKey(key)
-
-                    if (hasStock) return true
+                    if (stock.containsKey(key)) {
+                        return true
+                    }
                 }
 
                 return false
