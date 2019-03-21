@@ -7,6 +7,7 @@ import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.impl.client.HttpClients
 import org.apache.lucene.analysis.synonym.SynonymMap
+import org.elasticsearch.SpecialPermission
 import org.elasticsearch.common.component.AbstractLifecycleComponent
 import org.elasticsearch.common.logging.Loggers
 import org.elasticsearch.common.settings.Settings
@@ -44,6 +45,8 @@ class ReloadStockScheduler(
         var reloadTime = reloadTimeString?.toLongOrNull() ?: 60L
 
         schedule = scheduler.scheduleAtFixedRate({
+
+            SpecialPermission.check()
 
             AccessController.doPrivileged(PrivilegedAction<Unit> {
                 logger.info("Reloading Stock from $url")
