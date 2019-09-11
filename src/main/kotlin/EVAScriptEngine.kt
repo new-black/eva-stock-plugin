@@ -28,8 +28,14 @@ class EVAScriptEngine : ScriptEngine {
             val factory = FilterScript.Factory(::EVAStockFilterScriptFactory)
             return context.factoryClazz.cast(factory)
         } else if (scriptSource == "sort_stock") {
-            val factory = SearchScript.Factory(::EVAStockSortScriptFactory)
-            return context.factoryClazz.cast(factory)
+
+            if(context.factoryClazz.isAssignableFrom(ScoreScript.Factory::class.java)) {
+                val factory = ScoreScript.Factory(::EVAStockScoreScriptFactory)
+                return context.factoryClazz.cast(factory)
+            } else {
+                val factory = SearchScript.Factory(::EVAStockSortScriptFactory)
+                return context.factoryClazz.cast(factory)
+            }
         }
 
         throw java.lang.IllegalArgumentException("Unknown script")
@@ -86,6 +92,61 @@ class EVAScriptEngine : ScriptEngine {
 
         @Throws(IOException::class)
         override fun newInstance(context: LeafReaderContext): SearchScript {
+
+            val stock = ReloadStockScheduler.stockMap
+
+            return Script(orgIDs, boostAmount, stock, params, lookup, context)
+        }
+    }
+
+    private class EVAStockScoreScriptFactory(private val params: Map<String, Any>,
+                                            private val lookup: SearchLookup) : ScoreScript.LeafFactory {
+        override fun needs_score(): Boolean {
+            return false
+        }
+
+        val orgIDsParam = params["organization_unit_ids"]
+
+        val orgIDs = if (orgIDsParam is ArrayList<*>) {
+            orgIDsParam.map { (it as Int).toLong() }.toLongArray()
+        } else {
+            LongArray(0)
+        }
+
+        val boostAmountParam = params["boost_amount"]
+
+        val boostAmount = when (boostAmountParam) {
+            is Int -> boostAmountParam.toDouble()
+            is Double -> boostAmountParam
+            is String -> boostAmountParam.toDouble()
+            else -> {
+                1.0
+            }
+        }
+
+        private class Script(private val orgIDs: LongArray,
+                             private val boostAmount: Double,
+                             private val stock: LongIntHashMap, params: Map<String, Any>,
+                             lookup: SearchLookup, leafContext: LeafReaderContext)
+            : ScoreScript(params, lookup, leafContext) {
+            override fun execute(): Double {
+                val productID = (doc["product_id"] as ScriptDocValues.Longs)[0]
+
+                for (orgID in orgIDs) {
+
+                    val key = productID shl 32 or (orgID and 0xffffffffL)
+
+                    val hasStock = stock.containsKey(key)
+
+                    if (hasStock) return boostAmount
+                }
+
+                return 0.0
+            }
+        }
+
+        @Throws(IOException::class)
+        override fun newInstance(context: LeafReaderContext): ScoreScript {
 
             val stock = ReloadStockScheduler.stockMap
 
