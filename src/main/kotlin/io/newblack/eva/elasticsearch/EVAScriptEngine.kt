@@ -1,6 +1,10 @@
 package io.newblack.elastic
 
+import com.carrotsearch.hppc.IntObjectScatterMap
 import com.carrotsearch.hppc.LongIntHashMap
+import com.carrotsearch.hppc.LongLongHashMap
+import com.carrotsearch.hppc.LongObjectHashMap
+import com.sun.jna.StringArray
 import org.elasticsearch.script.ScriptContext
 import org.elasticsearch.script.ScriptEngine
 import org.elasticsearch.script.SearchScript
@@ -36,6 +40,9 @@ class EVAScriptEngine : ScriptEngine {
                 val factory = SearchScript.Factory(::EVAStockSortScriptFactory)
                 return context.factoryClazz.cast(factory)
             }
+        } else if(scriptSource == "filter_variation_stock") {
+            val factory = FilterScript.Factory(::EVAVariationStockFilterScriptFactory)
+            return context.factoryClazz.cast(factory)
         }
 
         throw java.lang.IllegalArgumentException("Unknown script")
@@ -155,7 +162,7 @@ class EVAScriptEngine : ScriptEngine {
     }
 
     private class EVAStockFilterScriptFactory(private val params: Map<String, Any>,
-                                              private val lookup: SearchLookup) : FilterScript.LeafFactory {
+                                               private val lookup: SearchLookup) : FilterScript.LeafFactory {
         val orgIDsParam = params["organization_unit_ids"]
 
         val orgIDs = if (orgIDsParam is ArrayList<*>) {
@@ -165,7 +172,8 @@ class EVAScriptEngine : ScriptEngine {
         }
 
         private class Script(private val orgIDs: LongArray,
-                             private val stock: LongIntHashMap, params: Map<String, Any>,
+                             private val stock: LongIntHashMap,
+                             params: Map<String, Any>,
                              lookup: SearchLookup, leafContext: LeafReaderContext)
             : FilterScript(params, lookup, leafContext) {
 
@@ -192,6 +200,71 @@ class EVAScriptEngine : ScriptEngine {
             val stock = ReloadStockScheduler.stockMap
 
             return Script(orgIDs, stock, params, lookup, context)
+        }
+    }
+
+    private class EVAVariationStockFilterScriptFactory(private val params: Map<String, Any>,
+                                              private val lookup: SearchLookup) : FilterScript.LeafFactory {
+        val orgIDsParam = params["organization_unit_ids"]
+
+        val orgIDs = if (orgIDsParam is ArrayList<*>) {
+            orgIDsParam.map { (it as Int).toLong() }.toLongArray()
+        } else {
+            LongArray(0)
+        }
+
+        val languageID = params["language_id"]
+
+        val variationField = params["variation_field"]
+
+        val variationValuesParam = params["variation_values"]
+
+        val reverseMap = ReloadStockScheduler.variationReverseMap
+
+        val variationValues = if(variationValuesParam is ArrayList<*>) {
+            variationValuesParam.map { it as String }.mapNotNull { reverseMap[it] }.toIntArray()
+        } else {
+           IntArray(0)
+        }
+
+        val stockMap = ReloadStockScheduler.variationStockData[languageID]?.get(variationField) ?: LongObjectHashMap()
+
+        private class Script(private val orgIDs: LongArray,
+                             private val stock: LongObjectHashMap<IntArray>,
+                             private val variationValues: IntArray,
+                             params: Map<String, Any>,
+                             lookup: SearchLookup,
+                             leafContext: LeafReaderContext)
+            : FilterScript(params, lookup, leafContext) {
+
+            override fun execute(): Boolean {
+
+                val productID = (doc["product_id"] as ScriptDocValues.Longs)[0]
+
+                for (orgID in orgIDs) {
+
+                    val key = productID shl 32 or (orgID and 0xffffffffL)
+
+                    var values = stock[key]
+
+                    if(values != null) {
+
+                        for (v in values) {
+                            if(variationValues.contains(v)) {
+                                return true
+                            }
+                        }
+                    }
+                }
+
+                return false
+            }
+        }
+
+        @Throws(IOException::class)
+        override fun newInstance(context: LeafReaderContext): FilterScript {
+
+            return Script(orgIDs, stockMap, variationValues, params, lookup, context)
         }
     }
 }
